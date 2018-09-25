@@ -1,0 +1,3 @@
+rootProject.name = 'akts'
+
+enableFeaturePreview('STABLE_PUBLISHING')
