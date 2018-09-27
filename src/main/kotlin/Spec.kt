@@ -76,14 +76,16 @@ class Specification internal constructor(private val builder: MutableList<Dynami
 
   /**
    * Define a [refine]able supporting collaborator, which will be instantiated exactly once for each test instance.
+   * @param destructor is called once after test finishes with the refined value
    */
-  fun <T> support(constructor: TestInstance.() -> T) =
-    (Collaborator<T>(constructor).also { supports.add(it) } as TestInstance.() -> T)
+  fun <T> support(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) =
+    (Collaborator<T>(constructor, destructor).also { supports.add(it) } as TestInstance.() -> T)
 
   /**
    * Define a [refine]able subject under test, which will be instantiated exactly once for each test instance.
+   * @param destructor is called once after test finishes with the refined value
    */
-  fun <T> subject(constructor: TestInstance.() -> T) = support(constructor)
+  fun <T> subject(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) = support(destructor, constructor)
 
   /**
    * Refine a collaborator by replacing the original definition with the result of the refinement
@@ -110,7 +112,10 @@ class TestInstance internal constructor(internal val context: Specification) {
   fun <T> force(collaborator: T) { }
 }
 
-internal class Collaborator<T>(private val rootInitializer: TestInstance.() -> T): (TestInstance) -> T {
+internal class Collaborator<T>(
+  private val rootInitializer: TestInstance.() -> T,
+  private val destructor: (TestInstance.(T) -> Unit)?
+): (TestInstance) -> T {
   private val refinements = ConcurrentHashMap<Specification, MutableList<TestInstance.(T) -> T>>()
   private val memo = ConcurrentHashMap<TestInstance, Optional<T>>()
 
@@ -128,5 +133,10 @@ internal class Collaborator<T>(private val rootInitializer: TestInstance.() -> T
     refinements.computeIfAbsent(context) { mutableListOf() }.add(refinement)
   }
 
-  internal fun cleanup(instance: TestInstance) { memo.remove(instance) }
+  internal fun cleanup(instance: TestInstance) {
+    memo.remove(instance)?.let {
+      val value: T = it.orElse(null)
+      destructor?.invoke(instance, value) ?: if (value is AutoCloseable) value.close()
+    }
+  }
 }

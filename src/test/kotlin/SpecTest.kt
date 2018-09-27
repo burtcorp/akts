@@ -183,4 +183,40 @@ class SpecTest {
     test.executable.execute()
     assertEquals(1, runs)
   }
+
+  @Test
+  fun `#describe allows declaring support with a destructor that runs after the tests finishes`() {
+    var runs = 0
+    val root = describe<Any> {
+      val x = support({ runs += 2}) { runs += 1 }
+      it("stuff") { x(); assertEquals(1, runs) }
+    }.findFirst().get() as DynamicContainer
+    val test = root.children.toList().first() as DynamicTest
+    test.executable.execute()
+    assertEquals(3, runs)
+  }
+
+  @Test
+  fun `#describe does not run support destructors unless support instantiated`() {
+    var runs = 0
+    val root = describe<Any> {
+      val x = support({ runs += 2}) { runs += 1 }
+      it("stuff") { }
+    }.findFirst().get() as DynamicContainer
+    val test = root.children.toList().first() as DynamicTest
+    test.executable.execute()
+    assertEquals(0, runs)
+  }
+
+  @Test
+  fun `#describe autocloses an autoclosable support`() {
+    var runs = 0
+    val root = describe<Any> {
+      val x = support { runs += 1 ;AutoCloseable { runs += 2 } }
+      it("stuff") { x() }
+    }.findFirst().get() as DynamicContainer
+    val test = root.children.toList().first() as DynamicTest
+    test.executable.execute()
+    assertEquals(3, runs)
+  }
 }
