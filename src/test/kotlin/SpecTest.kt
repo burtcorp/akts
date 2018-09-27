@@ -9,17 +9,17 @@ import kotlin.streams.toList
 
 class SpecTest {
   @Test
-  fun `#describe returns single container node`() {
+  fun `#describe returns a single container node`() {
     assertEquals(listOf(DynamicContainer::class.java), describe<Any> { }.map{ it.javaClass }.toList())
   }
 
   @Test
-  fun `#describe names container after class name`() {
+  fun `#describe names the container after the class name`() {
     assertEquals("SpecTest", describe<SpecTest> {  }.findFirst().get().displayName)
   }
 
   @Test
-  fun `#describe adds inner describe and context to children`() {
+  fun `#describe and #context inside become children of the root container`() {
     val root = describe<Any> {
       describe("hello") {
         describe("noo") { }
@@ -31,7 +31,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe adds nested inner describe and context to nested children`() {
+  fun `#describe and #context can be nested arbitrarily deep`() {
     val root = describe<Any> {
       describe("hello") {
         describe("noo") { }
@@ -43,25 +43,16 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe adds it examples to list`() {
+  fun `#it adds an example to the corresponding #describe or #context container`() {
     val root = describe<Any> {
       it("does") { }
       it("stuff") { }
     }.findFirst().get() as DynamicContainer
-
     assertEquals(listOf("does", "stuff"), root.children.map { it.displayName }.toList())
   }
 
   @Test
-  fun `#describe returns examples as test`() {
-    val root = describe<Any> {
-      it("stuff") { }
-    }.findFirst().get() as DynamicContainer
-    assertEquals(DynamicTest::class.java, root.children.findFirst().get().javaClass)
-  }
-
-  @Test
-  fun `#describe returns tests that run the examples`() {
+  fun `#it creates a test object that runs the example body`() {
     var runs = 0
     val root = describe<Any> {
       it("stuff") { runs += 1 }
@@ -72,7 +63,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe injects supports and subjects into examples`() {
+  fun `#support and #subject define collaborators that can be used inside examples`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1 }
@@ -85,7 +76,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe caches supports in each example`() {
+  fun `#support and #subject memoize their results`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -97,7 +88,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe does not cache supports between examples`() {
+  fun `#support and #subject does not memoize between examples`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -110,7 +101,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe supports refinements`() {
+  fun `#refine overrides the value of a previously declared collaborator`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -124,10 +115,10 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe cannot refine non-collaborators`() {
+  fun `#refine throws IllegalArgumentException when applied to a non-collaborator`() {
     try {
       val root = describe<Any> {
-        val x = { x: TestInstance -> }
+        val x = { _: TestInstance -> }
         refine(x) { }
       }.findFirst().get() as DynamicContainer
       root.children.forEach { }
@@ -139,7 +130,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe triggers only refinements in scope`() {
+  fun `#refine only affects the value of collaborators in the same, or child contexts`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -161,7 +152,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe allows forcing supports`() {
+  fun `#force ensures that a collaborator is evaluated`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -173,7 +164,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe allows forcing already forced supports`() {
+  fun `#force can be applied to an already evaluated collaborator`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1}
@@ -185,7 +176,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe allows declaring support with a destructor that runs after the tests finishes`() {
+  fun `#support and #subject can be declared with a destructor that runs after the tests finishes`() {
     var runs = 0
     val root = describe<Any> {
       val x = support({ runs += 2}) { runs += 1 }
@@ -197,11 +188,11 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe does not run support destructors unless support instantiated`() {
+  fun `#support and #subject does not invoke the destructor unless the collaborator is evaluated`() {
     var runs = 0
     val root = describe<Any> {
       val x = support({ runs += 2}) { runs += 1 }
-      it("stuff") { }
+      it("stuff") { x.hashCode() }
     }.findFirst().get() as DynamicContainer
     val test = root.children.toList().first() as DynamicTest
     test.executable.execute()
@@ -209,7 +200,7 @@ class SpecTest {
   }
 
   @Test
-  fun `#describe autocloses an autoclosable support`() {
+  fun `#support and #subject automatically closes an collaborator that is AutoClosable`() {
     var runs = 0
     val root = describe<Any> {
       val x = support { runs += 1 ;AutoCloseable { runs += 2 } }
