@@ -27,9 +27,9 @@ inline fun <reified T> describe(noinline spec: Specification.() -> Unit) = descr
 fun <T> describe(type: Class<T>, spec: Specification.() -> Unit) : Stream<DynamicNode> =
   sequenceOf(DynamicContainer.dynamicContainer(
     type.simpleName,
-    buildSequence<DynamicNode> {
-      yieldAll(mutableListOf<DynamicNode>().also { Specification(it, null).spec() })
-    }.asStream()
+    mutableListOf<DynamicNode>().also {
+      Specification(it, null).spec()
+    }.toList()
   )).asStream()
 
 
@@ -45,11 +45,9 @@ class Specification internal constructor(private val builder: MutableList<Dynami
   fun describe(what: String, spec: Specification.() -> Unit) {
     builder += DynamicContainer.dynamicContainer(
       what,
-      buildSequence<DynamicNode> {
-        yieldAll(mutableListOf<DynamicNode>().also {
-          Specification(it, this@Specification).spec()
-        })
-      }.asStream()
+      mutableListOf<DynamicNode>().also {
+        Specification(it, this@Specification).spec()
+      }.toList()
     )
   }
 
