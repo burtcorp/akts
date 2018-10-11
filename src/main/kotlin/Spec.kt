@@ -109,24 +109,30 @@ class TestInstance internal constructor(internal val context: Specification) {
   /**
    * Ensure the collaborator is evalated
    */
-  fun <T> force(collaborator: T) { }
+  fun <T> force(@Suppress("UNUSED_PARAMETER") collaborator: T) { }
 
   @Deprecated(message = "describe inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun describe(what: String, spec: Specification.() -> Unit) { }
 
   @Deprecated(message = "context inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun context(case: String, spec: Specification.() -> Unit) { }
 
   @Deprecated(message = "it inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun it(description: String, body: TestInstance.() -> Unit) { }
 
   @Deprecated(message = "support inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun <T> support(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) { }
 
   @Deprecated(message = "subject inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun <T> subject(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) { }
 
   @Deprecated(message = "refine inside instance example not allowed", level = DeprecationLevel.ERROR)
+  @Suppress("UNUSED_PARAMETER")
   fun <T> refine(collaborator: TestInstance.() -> T, refinement: TestInstance.(T) -> T) { }
 }
 
