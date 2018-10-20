@@ -3,11 +3,15 @@ package io.burt.akts
 import org.junit.jupiter.api.DynamicContainer
 import org.junit.jupiter.api.DynamicNode
 import org.junit.jupiter.api.DynamicTest
+import java.net.URI
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import java.util.stream.Stream
-import kotlin.coroutines.experimental.buildSequence
 import kotlin.streams.asStream
+
+object Options {
+  val isFlatNamespace by lazy { System.getProperty("io.burt.akts.flat.namespace") == "true" }
+}
 
 /**
  * Create a new test factory describing the specified class
@@ -25,16 +29,23 @@ inline fun <reified T> describe(noinline spec: Specification.() -> Unit) = descr
  * @param spec the specification body
  */
 fun <T> describe(type: Class<T>, spec: Specification.() -> Unit) : Stream<DynamicNode> =
+  describe(type, Options.isFlatNamespace, spec)
+
+internal fun <T> describe(type: Class<T>, isFlatNamespace: Boolean = Options.isFlatNamespace, spec: Specification.() -> Unit) : Stream<DynamicNode> =
   sequenceOf(DynamicContainer.dynamicContainer(
     type.simpleName,
+    null,
     mutableListOf<DynamicNode>().also {
-      Specification(it, null).spec()
-    }.toList()
+      RootSpecification(it, type.simpleName, isFlatNamespace).spec()
+    }.asSequence().asStream()
   )).asStream()
 
-
-class Specification internal constructor(private val builder: MutableList<DynamicNode>, parent: Specification?) {
-  internal val ancestors: List<Specification> = (parent?.ancestors ?: emptyList<Specification>()) + listOf(this)
+abstract class Specification internal constructor(
+  private val builder: MutableList<DynamicNode>,
+  private val contextDescription: String
+) {
+  internal abstract val root: RootSpecification
+  internal abstract val ancestors: List<Specification>
   private val supports = mutableListOf<Collaborator<*>>()
 
   /**
@@ -46,8 +57,8 @@ class Specification internal constructor(private val builder: MutableList<Dynami
     builder += DynamicContainer.dynamicContainer(
       what,
       mutableListOf<DynamicNode>().also {
-        Specification(it, this@Specification).spec()
-      }.toList()
+        ChildSpecification(it, what, this).spec()
+      }.asSequence().asStream()
     )
   }
 
@@ -62,7 +73,9 @@ class Specification internal constructor(private val builder: MutableList<Dynami
    * Define a specification example
    */
   fun it(description: String, body: TestInstance.() -> Unit) {
-    builder += DynamicTest.dynamicTest(description) {
+    builder += DynamicTest.dynamicTest(
+      fullDescription(description),
+      if (root.isFlatNamespace) URI("flat") else null) {
       TestInstance(this).also { instance ->
         instance.body()
         for (support in supports) {
@@ -71,6 +84,14 @@ class Specification internal constructor(private val builder: MutableList<Dynami
       }
     }
   }
+
+  private fun fullDescription(exampleDescription: String) =
+    if (root.isFlatNamespace) {
+      ancestors.joinToString(separator = " ", postfix = " $exampleDescription") { it.contextDescription }
+    }
+    else {
+      exampleDescription
+    }
 
   /**
    * Define a [refine]able supporting collaborator, which will be instantiated exactly once for each test instance.
@@ -95,6 +116,24 @@ class Specification internal constructor(private val builder: MutableList<Dynami
       throw IllegalArgumentException("Only support and subject collaborators can be refined, not $collaborator")
     }
   }
+}
+
+internal class RootSpecification(
+  builder: MutableList<DynamicNode>,
+  contextDescription: String,
+  internal val isFlatNamespace: Boolean = false
+): Specification(builder, contextDescription) {
+  override val root = this
+  override val ancestors = listOf(this)
+}
+
+internal class ChildSpecification(
+  builder: MutableList<DynamicNode>,
+  contextDescription: String,
+  private val parent: Specification
+): Specification(builder, contextDescription) {
+  override val root get() = parent.root
+  override val ancestors get() = parent.ancestors + this
 }
 
 class TestInstance internal constructor(internal val context: Specification) {
