@@ -97,14 +97,15 @@ abstract class Specification internal constructor(
    * Define a [refine]able supporting collaborator, which will be instantiated exactly once for each test instance.
    * @param destructor is called once after test finishes with the refined value
    */
-  fun <T> support(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) =
-    (Collaborator<T>(constructor, destructor).also { supports.add(it) } as TestInstance.() -> T)
+  fun <T> support(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T): TestInstance.() -> T =
+    Collaborator<T>(constructor, destructor).also { supports.add(it) }
 
   /**
    * Define a [refine]able subject under test, which will be instantiated exactly once for each test instance.
    * @param destructor is called once after test finishes with the refined value
    */
-  fun <T> subject(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T) = support(destructor, constructor)
+  fun <T> subject(destructor: (TestInstance.(T) -> Unit)? = null, constructor: TestInstance.() -> T): TestInstance.() -> T =
+    support(destructor, constructor)
 
   /**
    * Refine a collaborator by replacing the original definition with the result of the refinement
