@@ -9,7 +9,7 @@ import java.net.URI
 import java.util.Optional
 import kotlin.streams.toList
 
-class SpecTest {
+class DescribeDslTest {
   @Test
   fun `#describe returns a single container node`() {
     assertEquals(listOf(DynamicContainer::class.java), describe(Any::class.java, false) { }.map{ it.javaClass }.toList())
@@ -17,7 +17,7 @@ class SpecTest {
 
   @Test
   fun `#describe names the container after the class name`() {
-    assertEquals("SpecTest", describe(SpecTest::class.java, false) {  }.findFirst().get().displayName)
+    assertEquals("DescribeDslTest", describe(DescribeDslTest::class.java, false) {  }.findFirst().get().displayName)
   }
 
   @Test
@@ -55,16 +55,16 @@ class SpecTest {
 
   @Test
   fun `#it includes full context description when using flat namespace`() {
-    val root = describe(SpecTest::class.java, true) {
+    val root = describe(DescribeDslTest::class.java, true) {
       it("does") { }
       context("noo") {
         it("stuff") { }
       }
     }.findFirst().get() as DynamicContainer
     val children = root.children.toList()
-    assertEquals(listOf("SpecTest does", "noo"), children.map { it.displayName })
+    assertEquals(listOf("DescribeDslTest does", "noo"), children.map { it.displayName })
     val nested = children.last() as DynamicContainer
-    assertEquals(listOf("SpecTest noo stuff"), nested.children.map { it.displayName }.toList())
+    assertEquals(listOf("DescribeDslTest noo stuff"), nested.children.map { it.displayName }.toList())
   }
 
   @Test
@@ -162,14 +162,14 @@ class SpecTest {
   fun `#refine throws IllegalArgumentException when applied to a non-collaborator`() {
     try {
       val root = describe(Any::class.java, false) {
-        val x = { _: TestInstance -> }
+        val x = { _: TestContext -> }
         refine(x) { }
       }.findFirst().get() as DynamicContainer
       root.children.forEach { }
       fail<Unit>("Should have thrown")
     } catch(e: IllegalArgumentException) {
-      val message = e.message?.replace("Function1<io.burt.akts.TestInstance, kotlin.Unit>", "(io.burt.akts.TestInstance) -> kotlin.Unit")
-      assertEquals("Only support and subject collaborators can be refined, not (io.burt.akts.TestInstance) -> kotlin.Unit", message)
+      val message = e.message?.replace("Function1<io.burt.akts.TestContext, kotlin.Unit>", "(io.burt.akts.TestContext) -> kotlin.Unit")
+      assertEquals("Only support and subject collaborators can be refined, not (io.burt.akts.TestContext) -> kotlin.Unit", message)
     }
   }
 
@@ -253,5 +253,6 @@ class SpecTest {
     val test = root.children.toList().first() as DynamicTest
     test.executable.execute()
     assertEquals(3, runs)
+
   }
 }
