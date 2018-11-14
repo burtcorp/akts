@@ -3,26 +3,31 @@ package io.burt.akts
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.DynamicContainer
+import org.junit.jupiter.api.DynamicNode
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import java.net.URI
 import java.util.Optional
+import java.util.stream.Stream
 import kotlin.streams.toList
 
-class DescribeDslTest {
+abstract class AbstractDescribeDslTest {
+  abstract fun <T> describeWithDefaultOptions(type: Class<T>, spec: SpecificationDsl.() -> Unit): Stream<DynamicNode>
+  abstract fun <T> describeWithOptions(type: Class<T>, isFlatNamespace: Boolean, spec: SpecificationDsl.() -> Unit): Stream<DynamicNode>
+
   @Test
   fun `#describe returns a single container node`() {
-    assertEquals(listOf(DynamicContainer::class.java), describe(Any::class.java, false) { }.map{ it.javaClass }.toList())
+    assertEquals(listOf(DynamicContainer::class.java), describeWithDefaultOptions(Any::class.java) { }.map{ it.javaClass }.toList())
   }
 
   @Test
   fun `#describe names the container after the class name`() {
-    assertEquals("DescribeDslTest", describe(DescribeDslTest::class.java, false) {  }.findFirst().get().displayName)
+    assertEquals("AbstractDescribeDslTest", describeWithDefaultOptions(AbstractDescribeDslTest::class.java) {  }.findFirst().get().displayName)
   }
 
   @Test
   fun `#describe and #context inside become children of the root container`() {
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       describe("hello") {
         describe("noo") { }
       }
@@ -34,7 +39,7 @@ class DescribeDslTest {
 
   @Test
   fun `#describe and #context can be nested arbitrarily deep`() {
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       describe("hello") {
         describe("noo") { }
         context("world") { }
@@ -46,30 +51,44 @@ class DescribeDslTest {
 
   @Test
   fun `#it adds an example to the corresponding #describe or #context container`() {
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       it("does") { }
       it("stuff") { }
     }.findFirst().get() as DynamicContainer
-    assertEquals(listOf("does", "stuff"), root.children.map { it.displayName }.toList())
+    assertEquals(listOf("does", "stuff"), root.children.map { it.displayName.split(" ").last() }.toList())
   }
 
   @Test
-  fun `#it includes full context description when using flat namespace`() {
-    val root = describe(DescribeDslTest::class.java, true) {
+  fun `#it includes plain description when not using flat namespace`() {
+    val root = describeWithOptions(AbstractDescribeDslTest::class.java, false) {
       it("does") { }
       context("noo") {
         it("stuff") { }
       }
     }.findFirst().get() as DynamicContainer
     val children = root.children.toList()
-    assertEquals(listOf("DescribeDslTest does", "noo"), children.map { it.displayName })
+    assertEquals(listOf("does", "noo"), children.map { it.displayName })
     val nested = children.last() as DynamicContainer
-    assertEquals(listOf("DescribeDslTest noo stuff"), nested.children.map { it.displayName }.toList())
+    assertEquals(listOf("stuff"), nested.children.map { it.displayName }.toList())
+  }
+
+  @Test
+  fun `#it includes full context description when using flat namespace`() {
+    val root = describeWithOptions(AbstractDescribeDslTest::class.java, true) {
+      it("does") { }
+      context("noo") {
+        it("stuff") { }
+      }
+    }.findFirst().get() as DynamicContainer
+    val children = root.children.toList()
+    assertEquals(listOf("AbstractDescribeDslTest does", "noo"), children.map { it.displayName })
+    val nested = children.last() as DynamicContainer
+    assertEquals(listOf("AbstractDescribeDslTest noo stuff"), nested.children.map { it.displayName }.toList())
   }
 
   @Test
   fun `#it sets a test source URI in flat namespace`() {
-    val root = describe(Any::class.java, true) {
+    val root = describeWithOptions(Any::class.java, true) {
       it("does") { }
       context("noo") {
         it("stuff") { }
@@ -83,7 +102,7 @@ class DescribeDslTest {
 
   @Test
   fun `#it relies on the default test source URI when using nested namespace`() {
-    val root = describe(Any::class.java, false) {
+    val root = describeWithOptions(Any::class.java, false) {
       it("does") { }
       context("noo") {
         it("stuff") { }
@@ -98,7 +117,7 @@ class DescribeDslTest {
   @Test
   fun `#it creates a test object that runs the example body`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       it("stuff") { runs += 1 }
     }.findFirst().get() as DynamicContainer
     val test = root.children.findFirst().get() as DynamicTest
@@ -109,7 +128,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject define collaborators that can be used inside examples`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1 }
       val y = subject { runs += 2 }
       it("stuff") { y(); x() }
@@ -122,7 +141,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject memoize their results`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       it("stuff") { x(); x() }
     }.findFirst().get() as DynamicContainer
@@ -134,7 +153,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject does not memoize between examples`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       it("does") { x() }
       it("stuff") { x() }
@@ -147,7 +166,7 @@ class DescribeDslTest {
   @Test
   fun `#refine overrides the value of a previously declared collaborator`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       refine(x) { runs += 1 }
       refine(x) { runs += 1 }
@@ -161,7 +180,7 @@ class DescribeDslTest {
   @Test
   fun `#refine throws IllegalArgumentException when applied to a non-collaborator`() {
     try {
-      val root = describe(Any::class.java, false) {
+      val root = describeWithDefaultOptions(Any::class.java) {
         val x = { _: TestContext -> }
         refine(x) { }
       }.findFirst().get() as DynamicContainer
@@ -176,7 +195,7 @@ class DescribeDslTest {
   @Test
   fun `#refine only affects the value of collaborators in the same, or child contexts`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       it("stuff") { x() }
       context("two") {
@@ -198,7 +217,7 @@ class DescribeDslTest {
   @Test
   fun `#force ensures that a collaborator is evaluated`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       it("stuff") { force(x) }
     }.findFirst().get() as DynamicContainer
@@ -210,7 +229,7 @@ class DescribeDslTest {
   @Test
   fun `#force can be applied to an already evaluated collaborator`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1}
       it("stuff") { force(x()) }
     }.findFirst().get() as DynamicContainer
@@ -222,7 +241,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject can be declared with a destructor that runs after the tests finishes`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support({ runs += 2}) { runs += 1 }
       it("stuff") { x(); assertEquals(1, runs) }
     }.findFirst().get() as DynamicContainer
@@ -234,7 +253,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject does not invoke the destructor unless the collaborator is evaluated`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support({ runs += 2}) { runs += 1 }
       it("stuff") { x.hashCode() }
     }.findFirst().get() as DynamicContainer
@@ -246,7 +265,7 @@ class DescribeDslTest {
   @Test
   fun `#support and #subject automatically closes an collaborator that is AutoClosable`() {
     var runs = 0
-    val root = describe(Any::class.java, false) {
+    val root = describeWithDefaultOptions(Any::class.java) {
       val x = support { runs += 1 ;AutoCloseable { runs += 2 } }
       it("stuff") { x() }
     }.findFirst().get() as DynamicContainer
