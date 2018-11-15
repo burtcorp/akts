@@ -3,11 +3,14 @@ package io.burt.akts
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.opentest4j.AssertionFailedError
+import java.io.File
 import kotlin.script.experimental.api.ResultValue
 import kotlin.script.experimental.api.ResultWithDiagnostics
 import kotlin.script.experimental.api.dependencies
 import kotlin.script.experimental.host.toScriptSource
 import kotlin.script.experimental.jvm.JvmDependency
+import kotlin.script.experimental.jvm.javaHome
+import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.util.classpathFromClassloader
 import kotlin.script.experimental.jvmhost.BasicJvmScriptingHost
 import kotlin.script.experimental.jvmhost.createJvmCompilationConfigurationFromTemplate
@@ -17,6 +20,9 @@ class AktsScriptEvalTest {
     val evaluationResult = BasicJvmScriptingHost().eval(
       script.toScriptSource(),
       createJvmCompilationConfigurationFromTemplate<AktsScript>() {
+        jvm {
+          javaHome(File(System.getenv("JAVA_HOME")))
+        }
         dependencies.append(
           JvmDependency(
             classpathFromClassloader(Thread.currentThread().contextClassLoader).orEmpty().filter {
