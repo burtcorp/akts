@@ -36,6 +36,10 @@ compileTestKotlin {
 
 test {
     useJUnitPlatform()
+
+    testLogging {
+        exceptionFormat 'full'
+    }
 }
 
 dokka {
